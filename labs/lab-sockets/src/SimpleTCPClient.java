@@ -1,60 +1,57 @@
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.net.Socket;
-import java.util.Scanner;
+import java.io.*;
+import java.net.*;
 
 public class SimpleTCPClient {
-    private Socket socket;
-    private DataInputStream input;
-    private DataOutputStream output;
-
-    public void start(String serverIp, int serverPort) throws IOException {
-        // Cria socket de comunicacao com o servidor e obtem canais de entrada e saida
-        System.out.println("[C1] Conectando com servidor " + serverIp + ":" + serverPort);
-        socket = new Socket(serverIp, serverPort);
-        input = new DataInputStream(socket.getInputStream());
-        output = new DataOutputStream(socket.getOutputStream());
-
-        // Espera mensagem ser digitada da entrada padrão (teclado)
-        System.out.println("[C2] Conexão estabelecida, eu sou o cliente: " + socket.getLocalSocketAddress());
-        System.out.print("Digite uma mensagem: ");
-        Scanner scanner = new Scanner(System.in);
-        String msg = scanner.nextLine();
-        scanner.close();
-        
-        // Envia mensagem para o servidor no canal de saida
-        System.out.println("[C3] Enviando mensagem para servidor");
-        output.writeUTF(msg);
-        System.out.println("[C4] Mensagem enviada, recebendo resposta");
-        
-        // Recebendo resposta do servidor
-        String response = input.readUTF();
-        System.out.println("[C5] Resposta recebida: " + response);
-    }
- 
-    public void stop() {
-        try {
-            input.close();
-            output.close();
-            socket.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
     public static void main(String[] args) {
-        String serverIp = "0.0.0.0";
-        int serverPort = 6666;
+        final BufferedReader userIn;
+        final PrintWriter out;
+        final BufferedReader in;
+        Socket socket = null;
+
         try {
-            // Cria e roda cliente
-            SimpleTCPClient client = new SimpleTCPClient();
-            client.start(serverIp, serverPort);
-            
-            // Finaliza cliente
-            client.stop();
-        } catch (IOException e) {
+            socket = new Socket("localhost", 6666);
+            userIn = new BufferedReader(new InputStreamReader(System.in));
+            out = new PrintWriter(socket.getOutputStream(), true);
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+            System.out.println("Connected to the server. Type messages:");
+
+            Thread sendThread = new Thread(() -> {
+                try {
+                    String userInput;
+                    while ((userInput = userIn.readLine()) != null) {
+                        out.println(userInput);
+                    }
+                } catch (IOException e) {
+                    System.err.println("Error sending message: " + e.getMessage());
+                }
+            });
+
+            Thread receiveThread = new Thread(() -> {
+                try {
+                    String serverMessage;
+                    while ((serverMessage = in.readLine()) != null) {
+                        System.out.println(serverMessage);
+                    }
+                } catch (IOException e) {
+                    System.err.println("Error receiving message: " + e.getMessage());
+                }
+            });
+
+            sendThread.start();
+            receiveThread.start();
+
+            sendThread.join();
+            receiveThread.join();
+
+        } catch (IOException | InterruptedException e) {
             e.printStackTrace();
+        } finally {
+            try {
+                if (socket != null) socket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 }
